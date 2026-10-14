@@ -1,0 +1,5 @@
+.DS_Store
+AGENTS.md
+.claude/
+.env*
+node_modules/

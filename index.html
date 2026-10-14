@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plotto × Save the Cat!</title>
+<style>
+  :root {
+    --bg: #101215; --card: #181B20; --raised: #20242B; --off: #14161A; --edge: #2A2F37;
+    --ink: #ECEDEF; --dim: #A3A9B4; --faint: #8A909B; --accent: #F0B44C; --on-accent: #15120A;
+    --pass: #7FE0A6; --pass-bg: #1E3328; --pass-edge: #2F5A42;
+    --fail: #FF9E92; --fail-strong: #F0786A; --fail-bg: #2A1916; --fail-edge: #6A3530; --fail-ink: #D5B8B3;
+    --lock-bg: #1C1A14; --lock-edge: #5A4720;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 var(--sans); background: var(--bg); color: var(--ink); }
+  h1, h2, h3, p, dl, dd { margin: 0; }
+  button { height: 44px; padding: 0 18px; border-radius: 8px; border: 0; background: var(--accent); color: var(--on-accent); font: 600 15px var(--sans); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--edge); font-weight: 500; }
+  select { height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--edge); background: var(--card); color: var(--ink); font: 500 15px var(--sans); }
+  button.icon { width: 44px; padding: 0; justify-content: center; background: transparent; color: var(--dim); border: 1px solid var(--edge); }
+  button.icon.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  button.icon.hot { color: var(--fail); border-color: var(--fail-strong); }
+  button:disabled { opacity: .45; cursor: default; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mono { font-family: var(--mono); }
+  .ok { color: var(--pass); } .no { color: var(--fail); } .dim { color: var(--faint); } .acc { color: var(--accent); }
+
+  header { border-bottom: 1px solid var(--edge); padding: 20px 40px; }
+  .wrap { max-width: 1320px; margin: 0 auto; }
+  header .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+  header h1 { font-size: 22px; letter-spacing: -.01em; }
+  header p { color: var(--dim); font-size: 14px; }
+  .titleBlock { flex: 1 1 320px; }
+  .headActions { display: flex; flex-wrap: wrap; gap: 8px; }
+  main { padding: 28px 40px 64px; display: flex; flex-direction: column; gap: 24px; }
+
+  .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .step { text-decoration: none; color: var(--ink); background: var(--card); border: 1px solid var(--edge); border-top: 3px solid var(--edge); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .stepTag { font: 600 12px var(--mono); letter-spacing: .06em; color: var(--dim); }
+  .stepName { font-size: 14px; font-weight: 600; }
+  .stepNum { display: none; }
+  .step.pass { border-top-color: var(--pass); } .step.pass .stepTag { color: var(--pass); }
+  .step.fail { border-color: var(--fail-strong); border-top-color: var(--fail-strong); } .step.fail .stepTag { color: var(--fail); }
+  .step.unrolled { border-top-color: var(--accent); } .step.unrolled .stepTag { color: var(--accent); }
+  .step.locked { background: var(--off); border-style: dashed; color: var(--dim); } .step.locked .stepTag { color: var(--faint); }
+  .step[aria-current] { background: var(--raised); }
+
+  .theme { background: var(--card); border: 1px solid var(--lock-edge); border-radius: 12px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+  .tag { font: 600 12px var(--mono); letter-spacing: .08em; color: var(--accent); }
+  .themeText { font-size: 18px; font-weight: 600; flex: 1 1 360px; }
+  .hint { color: var(--faint); font-size: 13px; }
+
+  .cols { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .gates { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .gate { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; scroll-margin-top: 16px; }
+  .gate.cur.fail { border-color: var(--fail-strong); }
+  .gate.off { background: var(--off); border-style: dashed; color: var(--dim); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; }
+  .gHead { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; }
+  .gate.cur .gHead { border-bottom: 1px solid var(--edge); padding: 16px 18px; }
+  .gate.cur h2 { font-size: 18px; }
+  .gTitle { flex: 1 1 240px; min-width: 0; }
+  .gTitle h2 { font-size: 16px; }
+  .gTitle p { color: var(--dim); font-size: 13px; }
+  .dot { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; font: 700 15px var(--mono); border: 1px solid var(--edge); }
+  .dot.pass { background: var(--pass-bg); color: var(--pass); border-color: var(--pass-bg); }
+  .dot.fail { background: var(--fail-strong); color: #1A0E0C; border-color: var(--fail-strong); }
+  .dot.unrolled { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .chip { font: 600 12px var(--mono); color: var(--faint); border: 1px solid var(--edge); border-radius: 20px; padding: 3px 10px; }
+  .chip.pass { color: var(--pass); border-color: var(--pass-edge); }
+  .chip.fail { color: var(--fail); border-color: var(--fail-edge); }
+  .chip.unrolled { color: var(--accent); border-color: var(--lock-edge); }
+  .summary { padding: 4px 18px 16px 62px; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px 12px; font-size: 14px; }
+  .summary dt { font: 500 13px var(--mono); color: var(--dim); }
+  .summary .ok { font-size: 13px; }
+  .gBody { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+  .alert { background: var(--fail-bg); border: 1px solid var(--fail-edge); border-radius: 10px; padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start; }
+  .alert > svg { color: var(--fail); flex: none; margin-top: 2px; }
+  .alert strong { display: block; font-size: 14px; }
+  .alert span { color: var(--fail-ink); font-size: 14px; }
+  .dice { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .die { background: var(--bg); border: 1px solid var(--edge); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .die.unrolled { border-style: dashed; }
+  .die.locked { background: var(--lock-bg); border-color: var(--lock-edge); }
+  .die.good { border-color: var(--pass-edge); }
+  .die.bad { border-color: var(--fail-edge); }
+  .dieTop { display: flex; align-items: center; gap: 8px; }
+  .dieName { flex: 1; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+  .dieRoll { font: 500 13px var(--mono); color: var(--accent); white-space: nowrap; }
+  .face { font-size: 16px; line-height: 1.45; }
+  .dieFoot { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+  .note { flex: 1; font-size: 13px; font-weight: 500; }
+  .rule { font-size: 13px; color: var(--dim); }
+  .rule b { color: var(--ink); }
+  .gActions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+  #outline { flex: 1 1 340px; min-width: 0; background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+  .oHead { display: flex; align-items: center; gap: 10px; }
+  .oHead h2 { font-size: 16px; flex: 1; }
+  .bar { height: 6px; background: var(--edge); border-radius: 3px; overflow: hidden; }
+  .bar > div { height: 6px; background: var(--pass); transition: width .3s; }
+  .act { display: flex; flex-direction: column; gap: 10px; }
+  .act h3 { font: 600 12px var(--mono); letter-spacing: .08em; color: var(--accent); }
+  .beat { display: flex; flex-direction: column; gap: 2px; }
+  .beat > span:first-child { font-size: 12px; color: var(--dim); }
+  .beat > span:last-child { font-size: 14px; }
+  .beat.off > span:last-child { color: var(--faint); }
+  .beat.bad { background: var(--fail-bg); border-radius: 8px; padding: 8px 10px; }
+  .beat.bad > span:first-child { color: var(--fail); }
+  .beat.bad > span:last-child { color: var(--fail-ink); }
+  footer { text-align: center; color: var(--dim); font-size: 12px; padding: 18px; }
+  footer.bad { color: var(--fail); }
+  .mobileBar { display: none; }
+
+  @media (min-width: 941px) {
+    #outline { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+  }
+  @media (max-width: 640px) {
+    header { padding: 16px; }
+    main { padding: 16px 16px 100px; gap: 16px; }
+    .steps { gap: 6px; }
+    .step { padding: 0; height: 44px; align-items: center; justify-content: center; border-top-width: 1px; }
+    .step.pass { background: var(--pass-bg); color: var(--pass); }
+    .step.fail { background: var(--fail-strong); color: #1A0E0C; }
+    .step.unrolled { background: var(--accent); color: var(--on-accent); }
+    .stepTag, .stepName { display: none; }
+    .stepNum { display: block; font: 700 14px var(--mono); }
+    .theme { padding: 10px 12px; }
+    .themeText { font-size: 15px; }
+    .theme .hint { display: none; }
+    .summary { padding-left: 18px; }
+    .gBody { padding: 14px; }
+    .dice { grid-template-columns: minmax(0, 1fr); }
+    .mobileBar { display: flex; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px 20px; background: var(--off); border-top: 1px solid var(--edge); }
+    .mobileBar button:first-child { flex: 1; height: 48px; justify-content: center; font-size: 16px; }
+    .mobileBar .icon { width: 48px; height: 48px; }
+  }
+</style>
+<script>
+// Packs live in packs/<name>.js and are loaded with a plain <script> tag, so the page works from file:// (no server, no fetch).
+// To add a pack: drop packs/<name>.js in and list it here. Any file also loads directly via index.html?pack=<name>.
+const PACKS = { "tech-drama": "Tech drama", cyberpunk: "Cyberpunk" };
+const PACK = (/^[\w-]+$/.exec(new URLSearchParams(location.search).get("pack") ?? "") || ["tech-drama"])[0];
+document.write(`<script src="packs/${PACK}.js"><\/script>`);
+</script>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="titleBlock">
+      <h1>Plotto × Save the Cat!</h1>
+      <p>Gated story generator · 5 gates · 15 beats</p>
+    </div>
+    <div class="headActions">
+      <button id="rollStory" onclick="rollStory()"></button>
+      <button class="ghost" onclick="resetAll()">Reset</button>
+      <select id="packPick" aria-label="Story pack" onchange="location.search = '?pack=' + this.value"></select>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <nav id="steps" class="steps" aria-label="Gate progress"></nav>
+  <section id="theme" class="theme" aria-label="Theme"></section>
+  <div class="cols">
+    <div id="gates" class="gates"></div>
+    <aside id="outline" aria-label="Story outline">
+      <div class="oHead"><h2>Story outline</h2><button id="copyBtn" class="ghost" onclick="copyOutline(this, outlineText())"></button></div>
+      <div id="outlineBody" style="display:flex;flex-direction:column;gap:16px"></div>
+      <button id="promptBtn" class="ghost" style="justify-content:center" onclick="copyOutline(this, promptText())"></button>
+    </aside>
+  </div>
+</main>
+<footer id="selfcheck"></footer>
+<div id="mobileBar" class="mobileBar"></div>
+
+<script id="engine">
+"use strict";
+
+// ---- Pack ---------------------------------------------------------------------
+// AXES and TABLES come from the pack script loaded in <head>.
+document.title += ` — ${PACKS[PACK] ?? PACK}`;
+document.getElementById("packPick").innerHTML = Object.entries({ ...PACKS, [PACK]: PACKS[PACK] ?? PACK })
+  .map(([k, name]) => `<option value="${k}"${k === PACK ? " selected" : ""}>${name}</option>`).join("");
+if (typeof TABLES === "undefined" || typeof AXES === "undefined") {
+  document.getElementById("selfcheck").className = "bad";
+  document.getElementById("selfcheck").textContent = `PACK FAILED TO LOAD: packs/${PACK}.js is missing or has a syntax error (a straight " inside a face ends the string). See the browser console.`;
+  throw new Error(`pack ${PACK} did not load`);
+}
+
+// ---- Gate definitions ---------------------------------------------------------
+const AX = (die, i) => (TABLES[die].faces[i - 1] && TABLES[die].faces[i - 1].ax) || null;
+const rolled = (g, die) => state[g].rolled[die] !== undefined;
+
+const GATES = [
+  { id: 1, title: "Gate 1 — The Inciting Setup", beats: "Beats 1–5: Opening Image · Theme Stated · Setup · Catalyst · Debate",
+    dice: ["P", "W", "N", "C", "X"],
+    rule: "<b>W ≢ N ∧ X ≡ Flaw(N)</b> — the Want serves the flaw side of the Need's axis; the Antagonist is that flaw at its worst",
+    failDice: s => ["W", "X"].filter(die => AX(die, s.rolled[die]) !== AX("N", s.rolled.N)),
+    check: s => ["W", "X"].every(die => AX(die, s.rolled[die]) === AX("N", s.rolled.N)) },
+  { id: 2, title: "Gate 2 — The Arena & B-Story", beats: "Beats 6–8: Break into Two · B-Story · Fun and Games",
+    dice: ["R", "M", "T"],
+    rule: "<b>Role(R) ∈ Domain(N) ∧ Agency(P, M) = Proactive</b> — the anchor embodies the Need's axis; M opens with the action it forces on P",
+    failDice: s => AX("R", s.rolled.R) === AX("N", state[1].rolled.N) ? [] : ["R"],
+    check: s => AX("R", s.rolled.R) === AX("N", state[1].rolled.N) },
+  { id: 3, title: "Gate 3 — The Midpoint Pivot", beats: "Beats 9–10: Midpoint · Bad Guys Close In",
+    dice: ["POL", "OP", "REV", "ESC"],
+    rule: "<b>ΔStakes &gt; 0 ∧ Clock = Active</b> — structural: the operator and its reversal raise the stakes for good, and every clock is irreversible",
+    failDice: () => [], check: () => true },
+  { id: 4, title: "Gate 4 — The Crucible", beats: "Beats 11–12: All Is Lost · Dark Night of the Soul",
+    dice: ["S", "E"],
+    rule: "<b>Surrender(W) ∧ Adoption(N)</b> — S is a Loss (W or the fallback is gone) or a Bargain (refusing it costs W); E must adopt the Need's axis",
+    failDice: s => AX("E", s.rolled.E) === AX("N", state[1].rolled.N) ? [] : ["E"],
+    check: s => AX("E", s.rolled.E) === AX("N", state[1].rolled.N) },
+  { id: 5, title: "Gate 5 — The Synthesis Finale", beats: "Beats 13–15: Break into Three · Finale · Final Image",
+    dice: ["K", "Z"],
+    rule: "<b>Mechanism(K) ∈ Lessons(R) ∧ Z ≡ Inversion(P₁)</b> — structural: K turns B-story tactics on X; Z inverts the opening image",
+    failDice: () => [], check: () => true },
+];
+
+// Rules carried by a face's opening word (packErrors enforces them). M: Agency(P, M) = Proactive. S: Surrender(W).
+const PREFIXES = {
+  R: ["Mentor", "Dependent", "Rival", "Co-conspirator"],
+  M: ["Infiltrate", "Exploit", "Expose", "Sabotage", "Win"],
+  S: ["Loss", "Bargain"],
+};
+
+// Spec die sizes (CONCEPT-FOR-GENERATOR.md). A die's size is its face count: packs may add faces to any die,
+// so these are minimums. POL and OP are fixed (3 + 3 polarities, Plotto's 6 operators); N is fixed at one face per axis.
+const SPEC_SIZE = { P: 12, W: 12, N: 8, C: 12, R: 12, M: 20, T: 20, X: 12, POL: 6, OP: 6, REV: 12, ESC: 12, S: 12, E: 8, K: 20, Z: 12 };
+const FIXED_SIZE = ["POL", "OP"];
+const size = die => TABLES[die].faces.length;
+
+// Genre Trope (T) is optional in the spec: off by default, and left out of every check and readout while off.
+let tropeOn = false;
+const diceOf = g => g.dice.filter(die => die !== "T" || tropeOn);
+
+// ---- State ---------------------------------------------------------------------
+let state;
+function freshState() {
+  state = {};
+  for (const g of GATES) state[g.id] = { unlocked: g.id === 1, open: false, rolled: {}, locked: {} };
+}
+
+const d = n => 1 + Math.floor(Math.random() * n);
+const faceText = (die, i) => TABLES[die].faces[i - 1].t ?? TABLES[die].faces[i - 1];
+
+function rollDie(gid, die) {
+  state[gid].rolled[die] = d(size(die));
+}
+
+function rollGate(gid) { reroll(gid); render(); }
+
+function reroll(gid) {
+  const g = GATES[gid - 1], s = state[gid];
+  if (!s.unlocked) return;
+  for (const die of diceOf(g)) if (!s.locked[die]) rollDie(gid, die);
+  // Locked W, X, R and E pin the Need's axis: steer N onto it, or their gates could never pass.
+  if (gid === 1 && !s.locked.N) {
+    const pins = new Set([[1, "W"], [1, "X"], [2, "R"], [4, "E"]].filter(([id, die]) => state[id].locked[die]).map(([id, die]) => AX(die, state[id].rolled[die])));
+    for (let i = 0; i < 1000 && pins.size === 1 && !pins.has(AX("N", s.rolled.N)); i++) rollDie(1, "N");
+  }
+  // Auto-satisfy the gate rule: reroll only the failing constrained die (locks respected).
+  for (let i = 0; i < 1000 && !g.check(s); i++) {
+    const failing = g.failDice(s).filter(die => !s.locked[die]);
+    if (!failing.length) break;
+    for (const die of failing) rollDie(gid, die);
+  }
+}
+
+// Unlock and roll every gate in order, stopping at the first one a lock keeps failing.
+function rollStory() {
+  for (const g of GATES) { state[g.id].unlocked = true; reroll(g.id); if (!gatePass(g)) break; }
+  render();
+}
+
+function rollSingle(gid, die) {
+  const s = state[gid];
+  if (!s.unlocked || s.locked[die]) return;
+  rollDie(gid, die);
+  render();
+}
+
+function toggleLock(gid, die) { state[gid].locked[die] = !state[gid].locked[die]; render(); }
+
+function toggleOpen(gid) { state[gid].open = !state[gid].open; render(); }
+
+function unlockNext(gid) {
+  const next = state[gid + 1];
+  if (next) { next.unlocked = true; render(); }
+}
+
+function resetAll() { freshState(); render(); }
+
+// Turning T on rolls it straight away, so a passing Gate 2 stays passing and the gates after it stay unlocked.
+function toggleTrope() {
+  tropeOn = !tropeOn;
+  if (tropeOn && state[2].unlocked && !rolled(2, "T")) rollDie(2, "T");
+  render();
+}
+
+const gateRolled = g => diceOf(g).every(die => rolled(g.id, die));
+const gatePass = g => gateRolled(g) && g.check(state[g.id]);
+const status = g => !state[g.id].unlocked ? "locked" : !gateRolled(g) ? "unrolled" : gatePass(g) ? "pass" : "fail";
+// The gate being worked on: first unlocked gate that isn't passing, else the last unlocked one.
+const currentGate = () => (GATES.find(g => state[g.id].unlocked && status(g) !== "pass")
+  || GATES.filter(g => state[g.id].unlocked).pop()).id;
+
+// ---- Display helpers -------------------------------------------------------------
+const svg = (body, size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const ICON = {
+  lock: svg('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  unlock: svg('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>'),
+  reroll: svg('<path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/>'),
+  check: svg('<path d="M5 12l5 5 9-10"/>'),
+  x: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+  copy: svg('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>', 16),
+  chevron: svg('<path d="M6 9l6 6 6-6"/>', 16),
+  arrow: svg('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+  dice: svg('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="15.5" cy="15.5" r="1.2"/>'),
+};
+const VERB = { W: ["fight", "fights"], X: ["corrupt", "corrupts"], R: ["embody", "embodies"], E: ["adopt", "adopts"] };
+const dieName = die => `${TABLES[die].label.replace(/ \(\w+\)$/, "")} · ${die}`;
+const beatNames = g => g.beats.replace(/^Beats [^:]+: /, "");
+const needName = () => faceText("N", state[1].rolled.N).split(" — ")[0];
+
+// Rule flag for a die. M and S: which way the face meets its gate rule (always valid in a pack that passes packErrors).
+// W, R, E: does this face sit on the Need's axis?
+function flag(gid, die) {
+  if (!rolled(gid, die)) return null;
+  const kind = faceText(die, state[gid].rolled[die]).split(":")[0];
+  if (die === "M") return { ok: true, text: `✓ proactive: P must ${kind.toLowerCase()} M` };
+  if (die === "S") return { ok: true, text: kind === "Loss" ? "✓ W or the fallback is gone" : "✓ refusing it costs W" };
+  if (!VERB[die] || !rolled(1, "N")) return null;
+  const ax = AX(die, state[gid].rolled[die]), n = AX("N", state[1].rolled.N), v = VERB[die][1];
+  return ax === n ? { ok: true, text: `✓ ${v} ${AXES[n]}` } : { ok: false, text: `✗ ${v} ${AXES[ax]}, not ${AXES[n]}` };
+}
+
+// Five acts (Freytag), one per gate.
+const ACTS = [
+  ["ACT I · EXPOSITION", [[1, ["P"], "Opening Image · Setup"], [1, ["N"], "Theme Stated"], [1, ["C", "X"], "Catalyst"], [1, ["W"], "Debate"]]],
+  ["ACT II · RISING ACTION", [[2, ["M", "T"], "Break into Two · Fun and Games"], [2, ["R"], "B-Story"]]],
+  ["ACT III · CLIMAX", [[3, ["POL", "OP"], "Midpoint"], [3, ["REV", "ESC"], "Bad Guys Close In"]]],
+  ["ACT IV · FALLING ACTION", [[4, ["S"], "All Is Lost"], [4, ["E"], "Dark Night of the Soul"]]],
+  ["ACT V · DÉNOUEMENT", [[5, ["K"], "Break into Three · Finale"], [5, ["Z"], "Final Image"]]],
+];
+
+// ---- Rendering -------------------------------------------------------------------
+function render() {
+  // An unlock holds only while every earlier gate passes; an upstream reroll that breaks one re-locks the rest.
+  let chainOk = true;
+  for (const g of GATES) {
+    if (!chainOk) state[g.id].unlocked = false;
+    chainOk = chainOk && state[g.id].unlocked && gatePass(g);
+  }
+  const focusId = document.activeElement && document.activeElement.id;
+  const cur = currentGate();
+  document.getElementById("steps").innerHTML = GATES.map(g => stepHtml(g, cur)).join("");
+  document.getElementById("theme").innerHTML = themeHtml();
+  document.getElementById("gates").innerHTML = GATES.map(g => gateHtml(g, cur)).join("");
+  document.getElementById("outlineBody").innerHTML = outlineHtml();
+  document.getElementById("mobileBar").innerHTML = mobileBarHtml(cur);
+  // innerHTML replaces the buttons; put keyboard focus back where it was.
+  const f = focusId && document.getElementById(focusId);
+  if (f) f.focus();
+}
+
+function stepHtml(g, cur) {
+  const st = status(g);
+  return `<a href="#gate-${g.id}" class="step ${st}" aria-label="Gate ${g.id}, ${st}"${g.id === cur ? ' aria-current="step"' : ""}>
+    <span class="stepTag">GATE ${g.id} · ${st.toUpperCase()}</span><span class="stepNum">${g.id}</span>
+    <span class="stepName">${g.title.replace(/^Gate \d+ — /, "")}</span></a>`;
+}
+
+function themeHtml() {
+  if (!rolled(1, "N")) return `<span class="tag">THEME · N</span><span class="themeText dim">Roll Gate 1 to set the theme</span>`;
+  return `<span class="tag">THEME · N</span><span class="themeText">${faceText("N", state[1].rolled.N)}</span>
+    <span class="hint">Controlling Idea: ${controllingIdea()} · W, X, R and E are checked against this axis</span>`;
+}
+// McKee's Controlling Idea (value + cause) from N's axis; the cause is left for the writer or LLM.
+const controllingIdea = () => AXES[AX("N", state[1].rolled.N)].replace("/", " prevails over ") + ", because …";
+
+function gateHtml(g, cur) {
+  const s = state[g.id], st = status(g);
+  if (st === "locked") {
+    return `<article id="gate-${g.id}" class="gate off"><span class="dot">${svg('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', 16)}</span>
+      <div class="gTitle"><h2>${g.title}</h2><p>${beatNames(g)} — pass Gate ${g.id - 1} to unlock</p></div>
+      <span class="chip">LOCKED</span></article>`;
+  }
+  const isCur = g.id === cur, open = isCur || s.open;
+  const head = `<div class="gHead">
+    <span class="dot ${st}">${st === "pass" ? ICON.check : g.id}</span>
+    <div class="gTitle"><h2>${g.title}</h2><p>${beatNames(g)}</p></div>
+    <span class="chip ${st}">${st.toUpperCase()}</span>
+    ${isCur ? "" : `<button id="open-${g.id}" class="ghost" aria-expanded="${open}" onclick="toggleOpen(${g.id})">${open ? "Collapse" : "Edit dice"} ${ICON.chevron}</button>`}
+  </div>`;
+  if (!open) {
+    const rows = diceOf(g).map(die => {
+      const f = flag(g.id, die);
+      return `<dt>${die}</dt><dd>${faceText(die, s.rolled[die])}${f ? ` <span class="${f.ok ? "ok" : "no"}">${f.text}</span>` : ""}</dd>`;
+    }).join("");
+    return `<article id="gate-${g.id}" class="gate">${head}<dl class="summary">${rows}</dl></article>`;
+  }
+
+  let alert = "";
+  if (st === "fail") {
+    const die = g.failDice(s)[0];
+    alert = `<div class="alert" role="status">${ICON.x}<div>
+      <strong>${dieName(die)} must ${VERB[die][0]} ${needName()}</strong>
+      <span>${s.locked[die] ? `${die} is locked, so this FAIL is deliberate. Unlock ${die} to reroll it.` : `Reroll ${die}, or lock it to keep this FAIL on purpose.`}</span></div></div>`;
+  }
+  const next = state[g.id + 1], canUnlock = next && !next.unlocked && st === "pass";
+  const actions = [`<button id="rollgate-${g.id}" class="${canUnlock ? "ghost" : ""}" onclick="rollGate(${g.id})">${ICON.reroll}Roll unlocked dice</button>`];
+  if (g.dice.includes("T")) actions.push(`<button id="trope" class="ghost" onclick="toggleTrope()">${tropeOn ? "Remove genre trope" : `Add genre trope (d${size("T")})`}</button>`);
+  if (canUnlock) actions.push(`<button id="unlock-${g.id}" onclick="unlockNext(${g.id})">Unlock Gate ${g.id + 1} ${ICON.arrow}</button>`);
+  else if (next && !next.unlocked) actions.push(`<button class="ghost" disabled>Unlock Gate ${g.id + 1} ${ICON.arrow}</button><span class="hint">Pass this gate to unlock Gate ${g.id + 1}</span>`);
+  if (!next && st === "pass") actions.push(`<span class="hint ok">All 15 beats locked in. Copy the trace from the outline.</span>`);
+
+  return `<article id="gate-${g.id}" class="gate${isCur ? " cur" : ""} ${st}">${head}<div class="gBody">${alert}
+    <div class="dice">${diceOf(g).map(die => dieHtml(g, die)).join("")}</div>
+    <p class="rule">Rule: ${g.rule}</p>
+    <div class="gActions">${actions.join("")}</div></div></article>`;
+}
+
+function dieHtml(g, die) {
+  const s = state[g.id], t = TABLES[die], i = s.rolled[die], key = `${g.id}-${die}`;
+  if (i === undefined) {
+    return `<div class="die unrolled"><div class="dieTop"><span class="dieName">${dieName(die)}</span><span class="dieRoll dim">d${size(die)}</span></div>
+      <p class="face dim">Not rolled yet</p>
+      <div class="dieFoot"><span class="note"></span><button id="reroll-${key}" class="ghost" onclick="rollSingle(${g.id},'${die}')">${ICON.reroll}Roll</button></div></div>`;
+  }
+  const f = flag(g.id, die), locked = !!s.locked[die];
+  const cls = (locked ? " locked" : "") + (f ? (f.ok ? " good" : " bad") : "");
+  const note = f ? `<span class="note ${f.ok ? "ok" : "no"}">${f.text}</span>`
+    : `<span class="note ${locked ? "acc" : ""}">${locked ? "Kept on every roll" : ""}</span>`;
+  return `<div class="die${cls}"><div class="dieTop"><span class="dieName">${dieName(die)}</span><span class="dieRoll">d${size(die)} → ${i}</span></div>
+    <p class="face">${faceText(die, i)}</p>
+    <div class="dieFoot">${note}
+      <button id="lock-${key}" class="icon${locked ? " on" : ""}" aria-pressed="${locked}" aria-label="Lock ${t.label}" onclick="toggleLock(${g.id},'${die}')">${locked ? ICON.lock : ICON.unlock}</button>
+      <button id="reroll-${key}" class="icon${f && !f.ok && !locked ? " hot" : ""}" aria-label="Reroll ${t.label}" onclick="rollSingle(${g.id},'${die}')"${locked ? " disabled" : ""}>${ICON.reroll}</button>
+    </div></div>`;
+}
+
+function outlineHtml() {
+  const done = GATES.filter(g => status(g) === "pass").reduce((n, g) => n + beatNames(g).split(" · ").length, 0);
+  const beat = ([gid, beatDice, name]) => {
+    const g = GATES[gid - 1], s = state[gid], dice = beatDice.filter(die => diceOf(g).includes(die));
+    if (!s.unlocked) return `<div class="beat off"><span>${name}</span><span>Unlocks at Gate ${gid}</span></div>`;
+    if (!dice.every(die => rolled(gid, die))) return `<div class="beat off"><span>${name}</span><span>Not rolled yet</span></div>`;
+    const bad = status(g) === "fail" && dice.some(die => g.failDice(s).includes(die));
+    return `<div class="beat${bad ? " bad" : ""}"><span>${bad ? "✗ " : ""}${name}</span><span>${dice.map(die => faceText(die, s.rolled[die])).join(" · ")}</span></div>`;
+  };
+  return `<div class="bar" role="progressbar" aria-label="Beats locked in" aria-valuemin="0" aria-valuemax="15" aria-valuenow="${done}"><div style="width:${done / 15 * 100}%"></div></div>
+    <p class="hint" style="margin-top:-8px">${done} of 15 beats locked in</p>
+    ${ACTS.map(([act, beats]) => `<section class="act"><h3>${act}</h3>${beats.map(beat).join("")}</section>`).join("")}`;
+}
+
+function mobileBarHtml(cur) {
+  const next = state[cur + 1], canUnlock = next && !next.unlocked && status(GATES[cur - 1]) === "pass";
+  return `<button id="m-roll" onclick="rollGate(${cur})">Roll Gate ${cur}</button>` + (next
+    ? `<button id="m-unlock" class="icon" aria-label="Unlock Gate ${cur + 1}" onclick="unlockNext(${cur})"${canUnlock ? "" : " disabled"}>${ICON.arrow}</button>` : "");
+}
+
+// Plain-text trace for the clipboard (same format as the spec's example).
+function outlineText() {
+  const lines = rolled(1, "N") ? [`Controlling Idea: ${controllingIdea()}`, ""] : [];
+  for (const g of GATES) {
+    const s = state[g.id];
+    if (!s.unlocked || !gateRolled(g)) continue;
+    lines.push(`[GATE ${g.id} — ${g.title.replace(/^Gate \d+ — /, "").toUpperCase()}]`);
+    for (const die of diceOf(g)) {
+      const i = s.rolled[die], ax = AX(die, i);
+      lines.push(`- ${die} (d${size(die)}: ${i}): ${faceText(die, i)}${ax ? `  [${AXES[ax]}]` : ""}`);
+    }
+    lines.push(`Validation: ${gatePass(g) ? "PASS" : "FAIL"} — ${ruleText(g)}`);
+    lines.push("");
+  }
+  return lines.join("\n") || "Roll Gate 1 to begin.";
+}
+const ruleText = g => g.rule.replace(/<[^>]+>/g, "").replace(/&gt;/g, ">");
+
+// The trace wrapped in instructions, so any LLM can turn it into a beat sheet and write the seams between the dice.
+function promptText() {
+  const legend = GATES.flatMap(diceOf).map(die => `${die} = ${TABLES[die].label.replace(/ \(\w+\)$/, "")}`).join("; ");
+  const beats = ACTS.map(([act, list]) => `${act}\n` + list.map(([gid, dice, name]) =>
+    `- ${name}: ${dice.filter(die => diceOf(GATES[gid - 1]).includes(die)).join(", ")}`).join("\n")).join("\n");
+  const todo = GATES.filter(g => !gatePass(g));
+  return `You are a story developer. Below is a story skeleton rolled with dice: Plotto-style variables fitted to Save the Cat!'s 15 beats in five acts. Each gate's Validation line is a dramatic rule the story must keep.
+
+Write a beat sheet from it:
+1. Give P a name and turn every variable into concrete specifics: people, places, what M actually is. Keep every face from a PASS gate true; don't contradict or drop any.
+2. Write the seams. Each beat must be caused by the one before it (link beats with "because", "but" or "therefore", never "and then"). In particular, show how C pulls P into M, what exactly the Algebra Operator acts on, how K uses what R taught P, and how Z reverses the Opening Image.
+3. Keep the theme N in view: W serves its flaw side, R embodies its need side, and E is the moment P adopts it.
+4. X is the force of antagonism: N's flaw side at its worst, with a face, and what P becomes if W wins. X sets C in motion, is the one closing in at Bad Guys Close In, and is who P faces in K. Make X as strong and as reasonable as P; the story is only as good as its opposition.
+5. Open a gap in every beat: P acts expecting one result, and the world answers with another. That gap, not the dice, is what pushes P to the next beat.
+
+Format:
+- A title and a one-sentence logline.
+- The Controlling Idea in one sentence, finishing the one in the skeleton: the value that wins and the cause that makes it win (draw the cause from E and K).
+- The 15 beats under the five act headings, 2–4 sentences each. Tag each beat with the dice it uses, e.g. "Catalyst [C]".
+- End with "Seams": one line for each connection you invented that the dice didn't give you.
+
+Dice: ${legend}.
+
+Beats and the dice that feed them:
+${beats}
+${todo.length ? `\nNot locked in yet, so write these beats yourself (replace any FAIL faces) and keep each rule:\n${todo.map(g => `- ${g.title}: ${ruleText(g)}`).join("\n")}\n` : ""}
+Rolled skeleton:
+${outlineText()}`;
+}
+
+function copyOutline(b, text) {
+  const label = b.querySelector("span"), name = b.dataset.name ??= label.textContent;
+  const done = () => { label.textContent = "Copied ✓"; setTimeout(() => label.textContent = name, 1200); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done);
+  else {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove(); done();
+  }
+}
+
+document.getElementById("rollStory").innerHTML = `${ICON.dice}Roll full story`;
+document.getElementById("copyBtn").innerHTML = `${ICON.copy}<span>Copy trace</span>`;
+document.getElementById("promptBtn").innerHTML = `${ICON.copy}<span>Copy as prompt</span>`;
+
+// ---- Pack check ----------------------------------------------------------------------
+// Every pack rule a script can verify (PACKS.md). Shown in the footer on load; also run from the terminal by check-pack.mjs.
+function packErrors() {
+  const missing = GATES.flatMap(g => g.dice).filter(k => !TABLES[k]);
+  if (missing.length) return [`missing tables: ${missing.join(", ")}`];
+  const errs = [], axes = Object.keys(AXES), tagged = ["N", "W", "X", "R", "E"];
+  const isTagged = f => f && typeof f.t === "string" && typeof f.ax === "string";
+  for (const [k, t] of Object.entries(TABLES)) {
+    const min = SPEC_SIZE[k], fixed = FIXED_SIZE.includes(k);
+    if (fixed ? t.faces.length !== min : t.faces.length < min) errs.push(`${k}: ${t.faces.length} faces, needs ${fixed ? "exactly" : "at least"} ${min}`);
+    if (/["<>&]/.test(t.label)) errs.push(`${k}: label must not contain " < > or &`);
+    t.faces.forEach((f, i) => {
+      const id = `${k}${i + 1}`, isTag = tagged.includes(k);
+      if (isTag ? !isTagged(f) : typeof f !== "string") return errs.push(`${id}: must be ${isTag ? "{ ax, t }" : "a plain string"}`);
+      if (isTag && !AXES[f.ax]) errs.push(`${id}: unknown axis "${f.ax}"`);
+      if (/[<>&]/.test(isTag ? f.t : f)) errs.push(`${id}: must not contain < > or &`);
+    });
+  }
+  for (const k of ["W", "X", "R", "E"]) {
+    const got = new Set(TABLES[k].faces.map(f => f && f.ax));
+    for (const ax of axes) if (!got.has(ax)) errs.push(`${k}: no face tagged axis ${ax}`);
+  }
+  for (const ax of axes) {
+    const count = TABLES.N.faces.filter(f => f && f.ax === ax).length;
+    if (count !== 1) errs.push(`N: needs exactly 1 face for axis ${ax}, has ${count}`);
+  }
+  TABLES.N.faces.forEach((f, i) => {
+    const want = isTagged(f) && AXES[f.ax] && `${AXES[f.ax].replace("/", " over ")} — `;
+    if (want && !f.t.startsWith(want)) errs.push(`N${i + 1}: must start with "${want}"`);
+  });
+  for (const [k, words] of Object.entries(PREFIXES)) TABLES[k].faces.forEach((f, i) => {
+    const t = isTagged(f) ? f.t : f, list = words.map(w => `${w}:`);
+    if (typeof t === "string" && !words.some(w => t.startsWith(`${w}: `)))
+      errs.push(`${k}${i + 1}: must start with ${list.slice(0, -1).join(", ")} or ${list.at(-1)}`);
+  });
+  return errs;
+}
+
+const PACK_ERRORS = packErrors();
+document.getElementById("selfcheck").className = PACK_ERRORS.length ? "bad" : "";
+document.getElementById("selfcheck").textContent = PACK_ERRORS.length
+  ? `PACK CHECK FAILED (${PACK_ERRORS.length}): ${PACK_ERRORS.join(" | ")}`
+  : `Self-check: OK — ${Object.keys(TABLES).length} tables, ${Object.keys(AXES).length} theme axes, all pack rules pass.`;
+// A broken pack can crash the gates, so only the errors show until it's fixed.
+if (!PACK_ERRORS.length) { freshState(); render(); }
+</script>
+</body>
+</html>
